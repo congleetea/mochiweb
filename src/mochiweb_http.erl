@@ -23,20 +23,28 @@ r15b_workaround() -> true.
 r15b_workaround() -> false.
 -endif.
 
+%% conglistener9http_1: 和emqttd_client中启动进程不一样,没有使用proc_lib库,这样启动的对于捕捉信号不太方便。
+%% 这里产生给客户端占用的第一个进程(websocket连接每个占用三个进程).
 start_link(Conn, Callback) ->
     {ok, spawn_link(?MODULE, init, [Conn, Callback])}.
 
 init(Conn, Callback) ->
+    %% conglistener9http_2: 和mqtt连接一样，等待acceptor的go消息, acceptor彻底将socket的控制权交给connection,  
+    %% 信息首先在这个进程初步处理，然后在转到emqttd_ws_client.
     {ok, NewConn} = Conn:wait(),
-	loop(NewConn, Callback).
+    loop(NewConn, Callback).
 
 loop(Conn, Callback) ->
+    %% 将socket设置参数{packet,http}将会把收到的数据通过erlang:decode_packet/3进行相应的格式化。
     ok = Conn:setopts([{packet, http}]),
     request(Conn, Callback).
 
 request(Conn, Callback) ->
+    %% 将socket设置为被动接受模式.
     ok = Conn:setopts([{active, once}]),
     receive
+        %% why: 为什么要{packet,httph}?
+        %% 处理请求报文.
         {Protocol, _, {http_request, Method, Path, Version}} when Protocol == http orelse Protocol == ssl ->
             ok = Conn:setopts([{packet, httph}]),
             headers(Conn, {Method, Path, Version}, [], Callback, 0);
@@ -70,10 +78,12 @@ headers(Conn, Request, Headers, _Callback, ?MAX_HEADERS) ->
 headers(Conn, Request, Headers, Callback, HeaderCount) ->
     ok = Conn:setopts([{active, once}]),
     receive
+        %% http_eoh表示报文头部结束，准备接收消息正文.
         {Protocol, _, http_eoh} when Protocol == http orelse Protocol == ssl ->
             Req = new_request(Conn, Request, Headers),
             callback(Callback, Req),
             ?MODULE:after_response(Conn, Callback, Req);
+        %% http_header 处理协议头
         {Protocol, _, {http_header, _, Name, _, Value}} when Protocol == http orelse Protocol == ssl ->
             headers(Conn, Request, [{Name, Value} | Headers], Callback, 1 + HeaderCount);
         {tcp_closed, _} ->
@@ -109,7 +119,7 @@ handle_invalid_request(Conn, Request, RevHeaders) ->
     Req:respond({400, [], []}),
     Conn:close(),
     exit(normal).
-
+%% 如果消息正文非空，就要{packet,raw}状态，让其停止http解析，把接收到的数据转换成{tcp,Socket,Data}
 new_request(Conn, Request, RevHeaders) ->
     ok = Conn:setopts([{packet, raw}]),
     mochiweb:new_request({Conn, Request, lists:reverse(RevHeaders)}).
@@ -165,7 +175,7 @@ range_skip_length(Spec, Size) ->
         {_OutOfRange, _End} ->
             invalid_range
     end.
-
+%% conglistener9http_3: 执行回调：emqttd_http:handle_request
 callback({M, F, A}, Req) ->
     erlang:apply(M, F, [Req | A]);
 callback({M, F}, Req) ->
