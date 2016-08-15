@@ -36,6 +36,7 @@ loop(Conn, Body, State, WsVersion, ReplyChannel) ->
     ok = Conn:setopts([{packet, 0}, {active, once}]),
     proc_lib:hibernate(?MODULE, request,
                        [Conn, Body, State, WsVersion, ReplyChannel]).
+
 %% 接收tcp/ssl数据，然后解析，在调用emqttd_ws:ws_loop/3
 %% 随后继续loop，接受数据.
 request(Conn, Body, State, WsVersion, ReplyChannel) ->
@@ -62,7 +63,6 @@ request(Conn, Body, State, WsVersion, ReplyChannel) ->
                     exit(normal);
                 Payload ->
                     %% 解析处Payload之后，执行Body(是一个函数 emqttd_ws:ws_loop/3)
-                    lager:error("~n~p:~p:Payload=~p~n", [?MODULE, ?LINE, Payload]),
                     NewState = call_body(Body, Payload, State, ReplyChannel),
                     loop(Conn, Body, NewState, WsVersion, ReplyChannel)
             end;
@@ -128,14 +128,14 @@ make_handshake(Req) ->
     %%Subprotol
     case Result of
         {Version, Response = {Status, Headers, Data}} ->
-            if
+            if 
                 SubProto =:= undefined ->
                     {Version, Response};
                 true ->
                     Response1 = {Status, Headers ++ [{"Sec-Websocket-Protocol", SubProto}], Data},
                     {Version, Response1}
             end;
-        error ->
+        error -> 
             error
     end.
 
@@ -307,3 +307,4 @@ parse_hixie(<<255, Rest/binary>>, Buffer) ->
   {Buffer, Rest};
 parse_hixie(<<H, T/binary>>, Buffer) ->
   parse_hixie(T, <<Buffer/binary, H>>).
+
