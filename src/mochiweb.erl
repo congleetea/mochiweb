@@ -32,6 +32,9 @@ start_http(ListenOn, MFArgs) ->
 start_http(ListenOn, Options, MFArgs) ->
     start_http(http, ListenOn, Options, MFArgs).
 
+%% 首先对http进行必要的配置，由于在emqttd.config中也有配置，所以这里要先merge，该添加的添加，
+%% 该更新的更新为我们设置的, 这里加入一个MFA参数{mochiweb_http, start_link, [MFArgs]}, 参数
+%% 里面还有一个MFArgs的参数{emqttd_http, handle_request, []}。
 -spec(start_http(atom(), esockd:listen_on(), [esockd:option()], esockd:mfargs()) -> {ok, pid()}).
 start_http(Proto, ListenOn, Options, MFArgs) when is_atom(Proto) ->
     SockOpts = merge_opts(?SOCKET_OPTS,
@@ -97,4 +100,3 @@ new_response({Request, Code, Headers}) ->
     mochiweb_response:new(Request,
                           Code,
                           mochiweb_headers:make(Headers)).
-

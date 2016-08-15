@@ -134,6 +134,7 @@ get(body_length, {?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]}=THIS)
         {cached, Cached} ->
             Cached
     end;
+%% 从二叉树Req中获取range, 没有就返回undefined.
 get(range, {?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]}=THIS) ->
     case get_header_value(range, THIS) of
         undefined ->
@@ -378,12 +379,14 @@ not_found(ExtraHeaders, {?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]
 ok({ContentType, Body}, {?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]}=THIS) ->
     ok({ContentType, [], Body}, THIS);
 ok({ContentType, ResponseHeaders, Body}, {?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]}=THIS) ->
+    %% 从list中构造一个headers()(也是一个list).
     HResponse = mochiweb_headers:make(ResponseHeaders),
     case THIS:get(range) of
         X when (X =:= undefined orelse X =:= fail) orelse Body =:= chunked ->
             %% http://code.google.com/p/mochiweb/issues/detail?id=54
             %% Range header not supported when chunked, return 200 and provide
             %% full response.
+            %% 组织响应的协议头, 插入二叉树中.
             HResponse1 = mochiweb_headers:enter("Content-Type", ContentType,
                                                 HResponse),
             respond({200, HResponse1, Body}, THIS);
@@ -870,4 +873,3 @@ accept_header({?MODULE, [_Conn, _Method, _RawPath, _Version, _Headers]}=THIS) ->
         Value ->
             Value
     end.
-
