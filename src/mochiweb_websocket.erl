@@ -37,8 +37,9 @@ loop(Conn, Body, State, WsVersion, ReplyChannel) ->
     proc_lib:hibernate(?MODULE, request,
                        [Conn, Body, State, WsVersion, ReplyChannel]).
 
-%% 接收tcp/ssl数据，然后解析，在调用emqttd_ws:ws_loop/3
-%% 随后继续loop，接受数据.
+%% 当通过http建立了websocket连接之后，就和http没有关系了，之后就通过websocket的数据帧通信(不再使用http数据帧).
+%% 接收tcp/ssl数据，然后解析，在调用emqttd_ws:ws_loop/3 处理二进制mqtt数据流。
+%% 随后继续loop，接受数据帧(这是websocket的概念).
 request(Conn, Body, State, WsVersion, ReplyChannel) ->
     receive
         {tcp_closed, _} ->
@@ -128,14 +129,14 @@ make_handshake(Req) ->
     %%Subprotol
     case Result of
         {Version, Response = {Status, Headers, Data}} ->
-            if 
+            if
                 SubProto =:= undefined ->
                     {Version, Response};
                 true ->
                     Response1 = {Status, Headers ++ [{"Sec-Websocket-Protocol", SubProto}], Data},
                     {Version, Response1}
             end;
-        error -> 
+        error ->
             error
     end.
 
@@ -307,4 +308,3 @@ parse_hixie(<<255, Rest/binary>>, Buffer) ->
   {Buffer, Rest};
 parse_hixie(<<H, T/binary>>, Buffer) ->
   parse_hixie(T, <<Buffer/binary, H>>).
-

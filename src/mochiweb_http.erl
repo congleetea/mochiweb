@@ -40,6 +40,8 @@ loop(Conn, Callback) ->
     ok = Conn:setopts([{packet, http}]),
     request(Conn, Callback).                    % 循环接受消息并处理.
 
+%% WebSocket和http的关系的唯一关系就是他的握手请求可以作为一个升级请求(upgrade request)经由HTTP服务器解释，握手结束之后，
+%% WebSocket就科http没有一点关系了。
 request(Conn, Callback) ->
     %% 将socket设置为被动接受模式, 然后坐等有套接字发出的消息，如果有消息来，就接受数据并进行处理。此时套接字又被重置成了被动模式.
     %% 于是在下一次循环中，我们需要再次启动{active,once}并等待消息, 每次都会这么多。
@@ -92,7 +94,8 @@ headers(Conn, Request, Headers, Callback, HeaderCount) ->
             %% 将请求信息整合得到Req = {mochiweb_request, [Conn, Method, RawPath, Version, Headers]}. 然后执行回调, 就是{emqttd_http, handle_request, []}
             Req = new_request(Conn, Request, Headers),
             %% jump to emqttd_http:handle_request([Req]) (将Req，加加在原有参数前面, 原有参数是[])
-            %% 最后执行emqttd_http:handle_request({mochiweb_request, [Conn, Method, RawPath, Version, Headers]}) 
+            %% 最后执行emqttd_http:handle_request({mochiweb_request, [Conn, Method, RawPath, Version, Headers]})
+            io:format("~n~p:~p:Request=~p~n", [?MODULE, ?LINE, Request]),
             callback(Callback, Req),
             %% 通过after_response处理返回响应之后的事.
             ?MODULE:after_response(Conn, Callback, Req);
